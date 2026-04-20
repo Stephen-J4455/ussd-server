@@ -22,35 +22,43 @@ function normalizePayload(body) {
   };
 }
 
-app.get("/health", (_req, res) => {
-  res.status(200).json({ ok: true, service: "mystiwan-ussd-server" });
-});
-
-app.post("/ussd", async (req, res) => {
-  const payload = normalizePayload(req.body || {});
+async function handleUssdSession(req, res, source) {
+  const payload = normalizePayload(req.method === "GET" ? req.query || {} : req.body || {});
 
   try {
     const ussdResponse = await handleUssdRequest(payload);
     res.status(200).type("text/plain").send(ussdResponse);
   } catch (error) {
-    console.error("USSD processing error:", error);
+    console.error(`${source} processing error:`, error);
     res.status(200).type("text/plain").send("END Service temporarily unavailable.");
   }
+}
+
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true, service: "mystiwan-ussd-server" });
 });
 
-app.post("/ussd/callback", (req, res) => {
+app.get("/ussd", async (req, res) => handleUssdSession(req, res, "USSD"));
+app.post("/ussd", async (req, res) => handleUssdSession(req, res, "USSD"));
+
+app.get("/ussd/callback", async (req, res) => {
+  const payload = normalizePayload(req.query || {});
+
+  if (payload.sessionId || payload.text || payload.phoneNumber) {
+    await handleUssdSession(req, res, "USSD callback");
+    return;
+  }
+
+  console.log("USSD event payload:", req.query);
+  res.status(200).json({ ok: true });
+});
+
+app.post("/ussd/callback", async (req, res) => {
   const payload = normalizePayload(req.body || {});
 
   // Africa's Talking sometimes sends session traffic to callback fields.
   if (payload.sessionId || payload.text || payload.phoneNumber) {
-    handleUssdRequest(payload)
-      .then((ussdResponse) => {
-        res.status(200).type("text/plain").send(ussdResponse);
-      })
-      .catch((error) => {
-        console.error("USSD callback processing error:", error);
-        res.status(200).type("text/plain").send("END Service temporarily unavailable.");
-      });
+    await handleUssdSession(req, res, "USSD callback");
     return;
   }
 
