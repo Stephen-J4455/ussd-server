@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/ussd",
+      "destination": "/api/ussd"
+    },
+    {
+      "source": "/ussd/callback",
+      "destination": "/api/ussd-callback"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/health"
+    }
+  ]
+}
