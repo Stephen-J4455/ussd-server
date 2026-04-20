@@ -39,8 +39,23 @@ app.post("/ussd", async (req, res) => {
 });
 
 app.post("/ussd/callback", (req, res) => {
-  // Optional hook for providers that send asynchronous delivery/payment events.
-  console.log("USSD callback payload:", req.body);
+  const payload = normalizePayload(req.body || {});
+
+  // Africa's Talking sometimes sends session traffic to callback fields.
+  if (payload.sessionId || payload.text || payload.phoneNumber) {
+    handleUssdRequest(payload)
+      .then((ussdResponse) => {
+        res.status(200).type("text/plain").send(ussdResponse);
+      })
+      .catch((error) => {
+        console.error("USSD callback processing error:", error);
+        res.status(200).type("text/plain").send("END Service temporarily unavailable.");
+      });
+    return;
+  }
+
+  // Optional hook for asynchronous delivery/payment events.
+  console.log("USSD event payload:", req.body);
   res.status(200).json({ ok: true });
 });
 
